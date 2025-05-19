@@ -218,46 +218,74 @@ tk.Button(button_frame, text="Load CSV", command=load_csv, bg="#007acc", fg="whi
 
 root.mainloop()
 
-# Subject stream mapping
-stream_subject_map = {
-    "Math/CS": [["math", "english", "physics", "chemistry", "computer science", "skill"]],
-    "Bio/Math": [["math", "english", "physics", "chemistry", "biology", "skill"]],
-    "Pure Science": [
-        ["physics", "chemistry", "biology", "english", "psychology", "skill"],
-        ["physics", "chemistry", "biology", "english", "computer science", "skill"]
-    ],
-    "Commerce": [
-        ["math", "english", "accountancy", "business studies", "economics", "skill"],
-        ["computer science", "english", "accountancy", "business studies", "economics", "skill"]
-    ]
-}
+try:
+    errors = []
 
-# Main logic after GUI
-user_input = selected_choice.get()
-valid_subject_sets = stream_subject_map.get(user_input, [])
+    if not selected_choice.get():
+        errors.append("You must select a Stream before loading the CSV.")
+    if not class_input.get():
+        errors.append("You must enter the Class before loading the CSV.")
+    if not section_input.get():
+        errors.append("You must enter the Section before loading the CSV.")
+    if not teacher_remarks or not teacher_remarks.strip():
+        errors.append("You must enter Teacher's Remarks before loading the CSV.")
+    if 'doc_path' not in globals() or not doc_path:
+        errors.append("You must select a path for saving the report document (Choose Default or Choose Custom).")
 
-selected_csv_file = selected_path.get()
-csv_subjects = get_subjects_from_csv(selected_csv_file)
+    if errors:
+        print("\n❌ ERROR: The following issues were found:")
+        for err in errors:
+            print(" -", err)
+        print("Please rerun the program and fill in all required fields.")
+        sys.exit(1)
 
-if len(csv_subjects) != 6:
-    print("❌ ERROR: CSV file must contain exactly 6 subjects.")
-    sys.exit()
+    # Subject stream mapping
+    stream_subject_map = {
+        "Math/CS": [["math", "english", "physics", "chemistry", "computer science", "skill"]],
+        "Bio/Math": [["math", "english", "physics", "chemistry", "biology", "skill"]],
+        "Pure Science": [
+            ["physics", "chemistry", "biology", "english", "psychology", "skill"],
+            ["physics", "chemistry", "biology", "english", "computer science", "skill"]
+        ],
+        "Commerce": [
+            ["math", "english", "accountancy", "business studies", "economics", "skill"],
+            ["computer science", "english", "accountancy", "business studies", "economics", "skill"]
+        ]
+    }
 
-if any(sorted(csv_subjects) == sorted(combo) for combo in valid_subject_sets):
-    print("✅ Subjects match. Processing CSV file...")
+    # Main logic after GUI
+    user_input = selected_choice.get()
+    valid_subject_sets = stream_subject_map.get(user_input, [])
+
+    selected_csv_file = selected_path.get()
+    csv_subjects = get_subjects_from_csv(selected_csv_file)
+
+    if len(csv_subjects) != 6:
+        print("❌ ERROR: CSV file must contain exactly 6 subjects.")
+        print("Please rerun the program with a valid CSV file.")
+        sys.exit(1)
+
+    if any(sorted(csv_subjects) == sorted(combo) for combo in valid_subject_sets):
+        print("✅ Subjects match. Processing CSV file...")
+        subject_percentages = process_csv(selected_csv_file, csv_subjects)
+    else:
+        print("❌ ERROR: Selected stream and CSV subjects do not match.")
+        print("Please rerun the program with correct stream and CSV.")
+        sys.exit(1)
+
     subject_percentages = process_csv(selected_csv_file, csv_subjects)
-else:
-    sys.exit()
+    graph_path = plot_subjects_performance(subject_percentages)
+    averages = {}
+    for subject, percentages in subject_percentages.items():
+        averages[subject] = st.mean(percentages[0])
 
-subject_percentages = process_csv(selected_csv_file, csv_subjects)  # Use the subject-wise performance data from the process_csv function
-graph_path = plot_subjects_performance(subject_percentages)  # Plot the graph and also save the graph in the variable
-# subjects percentage as average
-averages = {}
-for subject, percentages in subject_percentages.items():
-    averages[subject] = st.mean(percentages[0])
+    edulib_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(edulib_dir, "report_data.dat")
+    with open(file_path, "wb") as fo:
+        pickle.dump([student_name, class_input.get(), section_input.get(), attendance_percentage, assignment_data, teacher_remarks, averages, doc_path], fo)
 
-# Wrote the all data to binary file
-edulib_dir = os.path.dirname(os.path.abspath(__file__))
-file_path = os.path.join(edulib_dir, "report_data.dat")
-with open(file_path, "wb") as fo: # All inputs are writen to an binary file
-    pickle.dump([student_name, class_input.get(), section_input.get(), attendance_percentage, assignment_data, teacher_remarks, averages,doc_path], fo)
+except Exception as e:
+    print("\n❌ An error occurred:", str(e))
+    print("Please check your inputs (stream, CSV file, remarks, or document path).")
+    print("Rerun the program after fixing the issue.")
+    sys.exit(1)
